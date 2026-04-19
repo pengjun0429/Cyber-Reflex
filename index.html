@@ -18,9 +18,8 @@
             align-items: center;
             min-height: 100vh;
             margin: 0;
-            overflow-x: hidden;
+            padding-bottom: 50px;
         }
-        /* 玻璃擬態容器 */
         .glass-card {
             background: var(--glass);
             backdrop-filter: blur(10px);
@@ -38,115 +37,115 @@
             height: 300px;
             position: relative;
             cursor: crosshair;
-            overflow: hidden;
-            background: rgba(0, 0, 0, 0.2);
+            background: rgba(0, 0, 0, 0.3);
             border-radius: 15px;
+            margin-top: 15px;
+            display: none;
         }
         .target {
-            width: 50px;
-            height: 50px;
+            width: 40px;
+            height: 40px;
             background: var(--neon);
             border-radius: 50%;
             position: absolute;
             box-shadow: 0 0 20px var(--neon);
             cursor: pointer;
-            transition: transform 0.1s;
         }
-        .target:active { transform: scale(0.8); }
         table { width: 100%; border-collapse: collapse; margin-top: 15px; }
         th, td { padding: 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
-        .king-message {
-            color: #ffde00;
-            font-style: italic;
-            font-weight: bold;
-            text-shadow: 0 0 10px rgba(255, 222, 0, 0.5);
-            margin: 10px 0;
-        }
+        .king-message { color: #ffde00; font-weight: bold; margin: 10px 0; min-height: 20px; }
         button {
             background: var(--neon);
             border: none;
-            padding: 10px 20px;
+            padding: 12px 24px;
             border-radius: 10px;
             font-weight: bold;
             cursor: pointer;
-            margin-top: 10px;
+            transition: 0.3s;
         }
+        button:hover { opacity: 0.8; transform: scale(1.05); }
         input {
             background: rgba(255, 255, 255, 0.1);
             border: 1px solid var(--neon);
             color: white;
-            padding: 8px;
+            padding: 10px;
             border-radius: 5px;
             margin: 5px;
+            width: 80%;
         }
+        .instructions { font-size: 0.9rem; color: #ccc; text-align: left; line-height: 1.6; }
     </style>
 </head>
 <body>
 
     <div class="glass-card">
         <h1>Cyber Reflex</h1>
+        <div class="instructions">
+            <strong>如何遊玩：</strong><br>
+            1. 點擊「開始挑戰」，準備進入測試。<br>
+            2. 畫面上會隨機出現 5 次藍色能量球。<br>
+            3. 以最快速度點擊它！系統會計算平均反應時間。<br>
+            4. 分數越低，排名越高。
+        </div>
+        <hr style="border: 0.5px solid rgba(255,255,255,0.1); margin: 20px 0;">
         <div id="status">準備好了嗎？</div>
         <button id="start-btn">開始挑戰</button>
-        <div id="game-area" style="display:none;"></div>
+        <div id="game-area"></div>
     </div>
 
     <div class="glass-card" id="submit-area" style="display:none;">
-        <h3>挑戰成功！</h3>
-        <p>你的成績: <span id="final-score"></span> ms</p>
-        <input type="text" id="player-name" placeholder="輸入使用者名稱">
-        <input type="text" id="king-msg" placeholder="第一名可留言 (王者宣言)" style="display:none;">
+        <h3>挑戰完成！</h3>
+        <p>你的平均反應速度: <span id="final-score"></span> ms</p>
+        <input type="text" id="player-name" placeholder="輸入名稱">
+        <input type="text" id="king-msg" placeholder="第一名限定：在此輸入王者宣言" style="display:none;">
         <br>
-        <button id="send-btn">提交分數</button>
+        <button id="send-btn">提交分數並查看排名</button>
     </div>
 
     <div class="glass-card">
-        <h3>🏆 全球英雄榜</h3>
-        <div id="king-display" class="king-message"></div>
+        <h3>🏆 全球英雄榜 (Top 10)</h3>
+        <div id="king-display" class="king-message">載入中...</div>
         <table>
             <thead>
                 <tr>
                     <th>名次</th>
-                    <th>使用者</th>
+                    <th>玩家</th>
                     <th>成績 (ms)</th>
                 </tr>
             </thead>
-            <tbody id="leaderboard-body">
-                </tbody>
+            <tbody id="leaderboard-body"></tbody>
         </table>
     </div>
 
     <script>
-        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx6EvzLYGmavOgrUzQPB2BJGfEtWy4aPcINcPTw3ekHuP_eLsSVXClHwqkfMMrapQFBHA/exec';
-        let startTime, times = [], count = 0;
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbymgw3DzmZMj27_LgLprnsIeG99UdJiHCs78U_91NfoEk1sPiN8r2-FbByWD75dalDu8g/exec'; 
+        let startTime, times = [], count = 0, firstPlaceScore = 9999;
         const gameArea = document.getElementById('game-area');
         const startBtn = document.getElementById('start-btn');
 
-        // 獲取排行榜
         async function fetchLeaderboard() {
-            const res = await fetch(SCRIPT_URL);
-            const data = await res.json();
-            const body = document.getElementById('leaderboard-body');
-            const kingBox = document.getElementById('king-display');
-            
-            body.innerHTML = '';
-            if(data.length > 0) {
-                kingBox.innerText = data[0].Message ? `王者之聲："${data[0].Message}"` : "目前暫無王者留言";
-                if(data.length === 0 || parseFloat(document.getElementById('final-score').innerText) < data[0].Score) {
-                    document.getElementById('king-msg').style.display = 'inline-block';
+            try {
+                const res = await fetch(SCRIPT_URL);
+                const data = await res.json();
+                const body = document.getElementById('leaderboard-body');
+                const kingBox = document.getElementById('king-display');
+                body.innerHTML = '';
+                
+                if (data.length > 0) {
+                    firstPlaceScore = parseFloat(data[0].Score);
+                    kingBox.innerText = data[0].Message ? `王者之聲："${data[0].Message}"` : "目前暫無王者留言";
+                } else {
+                    kingBox.innerText = "虛位以待，快來爭奪第一！";
                 }
-            }
 
-            data.forEach((item, index) => {
-                const row = `<tr>
-                    <td>${index + 1}</td>
-                    <td>${item.Name}</td>
-                    <td>${item.Score}</td>
-                </tr>`;
-                body.innerHTML += row;
-            });
+                data.forEach((item, index) => {
+                    body.innerHTML += `<tr><td>${index + 1}</td><td>${item.Name}</td><td>${item.Score}</td></tr>`;
+                });
+            } catch (e) {
+                document.getElementById('king-display').innerText = "無法載入排行榜，請確認網頁已部署至 GitHub。";
+            }
         }
 
-        // 遊戲邏輯
         startBtn.onclick = () => {
             startBtn.style.display = 'none';
             gameArea.style.display = 'block';
@@ -163,43 +162,57 @@
             }
             const target = document.createElement('div');
             target.className = 'target';
-            target.style.top = Math.random() * 250 + 'px';
-            target.style.left = Math.random() * 450 + 'px';
+            target.style.top = Math.random() * (gameArea.offsetHeight - 40) + 'px';
+            target.style.left = Math.random() * (gameArea.offsetWidth - 40) + 'px';
             
             setTimeout(() => {
                 gameArea.appendChild(target);
                 startTime = Date.now();
-                target.onclick = () => {
+                target.onclick = (e) => {
+                    e.stopPropagation();
                     const diff = Date.now() - startTime;
                     times.push(diff);
                     count++;
                     spawnTarget();
                 };
-            }, Math.random() * 1000 + 500);
+            }, Math.random() * 1500 + 500);
         }
 
         function endGame() {
             gameArea.style.display = 'none';
-            const avg = times.reduce((a, b) => a + b) / times.length;
-            document.getElementById('final-score').innerText = avg.toFixed(2);
+            const avg = (times.reduce((a, b) => a + b) / times.length).toFixed(2);
+            document.getElementById('final-score').innerText = avg;
             document.getElementById('submit-area').style.display = 'block';
+            
+            if (parseFloat(avg) < firstPlaceScore) {
+                document.getElementById('king-msg').style.display = 'inline-block';
+            }
         }
 
-        // 提交分數
-        document.getElementById('send-btn').onclick = async () => {
-            const name = document.getElementById('player-name').value || "使用者";
+        document.getElementById('send-btn').onclick = async function() {
+            this.disabled = true;
+            this.innerText = "提交中...";
+            const name = document.getElementById('player-name').value || "不具名使用者";
             const score = document.getElementById('final-score').innerText;
             const message = document.getElementById('king-msg').value;
 
-            await fetch(SCRIPT_URL, {
-                method: 'POST',
-                body: JSON.stringify({ name, score, message })
-            });
-
-            location.reload();
+            try {
+                await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'no-cors', // 解決簡單 POST 請求的跨網域問題
+                    cache: 'no-cache',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, score, message })
+                });
+                alert("提交成功！頁面將重新載入");
+                location.reload();
+            } catch (e) {
+                alert("提交失敗，請檢查網路連線");
+                this.disabled = false;
+            }
         };
 
         fetchLeaderboard();
     </script>
 </body>
-</html> 
+</html>
