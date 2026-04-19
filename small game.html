@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cyber Reflex - 挑戰排名</title>
+    <style>
+        :root {
+            --glass: rgba(255, 255, 255, 0.1);
+            --neon: #00f2ff;
+        }
+        body {
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            color: white;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            overflow-x: hidden;
+        }
+        /* 玻璃擬態容器 */
+        .glass-card {
+            background: var(--glass);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.37);
+            margin: 20px;
+            width: 90%;
+            max-width: 500px;
+            text-align: center;
+        }
+        #game-area {
+            height: 300px;
+            position: relative;
+            cursor: crosshair;
+            overflow: hidden;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 15px;
+        }
+        .target {
+            width: 50px;
+            height: 50px;
+            background: var(--neon);
+            border-radius: 50%;
+            position: absolute;
+            box-shadow: 0 0 20px var(--neon);
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+        .target:active { transform: scale(0.8); }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { padding: 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
+        .king-message {
+            color: #ffde00;
+            font-style: italic;
+            font-weight: bold;
+            text-shadow: 0 0 10px rgba(255, 222, 0, 0.5);
+            margin: 10px 0;
+        }
+        button {
+            background: var(--neon);
+            border: none;
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        input {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid var(--neon);
+            color: white;
+            padding: 8px;
+            border-radius: 5px;
+            margin: 5px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="glass-card">
+        <h1>Cyber Reflex</h1>
+        <div id="status">準備好了嗎？</div>
+        <button id="start-btn">開始挑戰</button>
+        <div id="game-area" style="display:none;"></div>
+    </div>
+
+    <div class="glass-card" id="submit-area" style="display:none;">
+        <h3>挑戰成功！</h3>
+        <p>你的成績: <span id="final-score"></span> ms</p>
+        <input type="text" id="player-name" placeholder="輸入使用者名稱">
+        <input type="text" id="king-msg" placeholder="第一名可留言 (王者宣言)" style="display:none;">
+        <br>
+        <button id="send-btn">提交分數</button>
+    </div>
+
+    <div class="glass-card">
+        <h3>🏆 全球英雄榜</h3>
+        <div id="king-display" class="king-message"></div>
+        <table>
+            <thead>
+                <tr>
+                    <th>名次</th>
+                    <th>使用者</th>
+                    <th>成績 (ms)</th>
+                </tr>
+            </thead>
+            <tbody id="leaderboard-body">
+                </tbody>
+        </table>
+    </div>
+
+    <script>
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx6EvzLYGmavOgrUzQPB2BJGfEtWy4aPcINcPTw3ekHuP_eLsSVXClHwqkfMMrapQFBHA/exec';
+        let startTime, times = [], count = 0;
+        const gameArea = document.getElementById('game-area');
+        const startBtn = document.getElementById('start-btn');
+
+        // 獲取排行榜
+        async function fetchLeaderboard() {
+            const res = await fetch(SCRIPT_URL);
+            const data = await res.json();
+            const body = document.getElementById('leaderboard-body');
+            const kingBox = document.getElementById('king-display');
+            
+            body.innerHTML = '';
+            if(data.length > 0) {
+                kingBox.innerText = data[0].Message ? `王者之聲："${data[0].Message}"` : "目前暫無王者留言";
+                if(data.length === 0 || parseFloat(document.getElementById('final-score').innerText) < data[0].Score) {
+                    document.getElementById('king-msg').style.display = 'inline-block';
+                }
+            }
+
+            data.forEach((item, index) => {
+                const row = `<tr>
+                    <td>${index + 1}</td>
+                    <td>${item.Name}</td>
+                    <td>${item.Score}</td>
+                </tr>`;
+                body.innerHTML += row;
+            });
+        }
+
+        // 遊戲邏輯
+        startBtn.onclick = () => {
+            startBtn.style.display = 'none';
+            gameArea.style.display = 'block';
+            times = [];
+            count = 0;
+            spawnTarget();
+        };
+
+        function spawnTarget() {
+            gameArea.innerHTML = '';
+            if (count >= 5) {
+                endGame();
+                return;
+            }
+            const target = document.createElement('div');
+            target.className = 'target';
+            target.style.top = Math.random() * 250 + 'px';
+            target.style.left = Math.random() * 450 + 'px';
+            
+            setTimeout(() => {
+                gameArea.appendChild(target);
+                startTime = Date.now();
+                target.onclick = () => {
+                    const diff = Date.now() - startTime;
+                    times.push(diff);
+                    count++;
+                    spawnTarget();
+                };
+            }, Math.random() * 1000 + 500);
+        }
+
+        function endGame() {
+            gameArea.style.display = 'none';
+            const avg = times.reduce((a, b) => a + b) / times.length;
+            document.getElementById('final-score').innerText = avg.toFixed(2);
+            document.getElementById('submit-area').style.display = 'block';
+        }
+
+        // 提交分數
+        document.getElementById('send-btn').onclick = async () => {
+            const name = document.getElementById('player-name').value || "使用者";
+            const score = document.getElementById('final-score').innerText;
+            const message = document.getElementById('king-msg').value;
+
+            await fetch(SCRIPT_URL, {
+                method: 'POST',
+                body: JSON.stringify({ name, score, message })
+            });
+
+            location.reload();
+        };
+
+        fetchLeaderboard();
+    </script>
+</body>
+</html> 
